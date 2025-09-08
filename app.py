@@ -15,7 +15,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# CSS (sem alterações)
+# CSS (Com ADIÇÕES para corrigir o logo)
 st.markdown("""
 <style>
     :root {
@@ -26,8 +26,44 @@ st.markdown("""
     .block-container { padding-top: 2rem; padding-bottom: 3rem; padding-left: 2rem; padding-right: 2rem; }
     h1, h2, h3 { color: var(--secondary-color); font-weight: bold; text-align: center; }
     h1 { white-space: nowrap; }
-    .subtitle { text-align: center; color: #555; font-size: 1.1em; margin-bottom: 1.5rem; } 
-    div[data-testid="stImage"] { text-align: center; }
+    .subtitle { text-align: center; color: #555; font-size: 1.1em; margin-bottom: 1.5rem; }
+
+    /* --- ADIÇÃO CRÍTICA PARA CORRIGIR O LOGO --- */
+    /* Target o container que envolve o st.image e o st.title */
+    /* Este é o "header" implícito do Streamlit */
+    div[data-testid="stVerticalBlock"] > div:nth-child(1) > div:nth-child(1) {
+        /* Remove o arredondamento de borda que o Streamlit pode aplicar */
+        border-radius: 0 !important;
+        /* Garante que o conteúdo não seja cortado */
+        overflow: visible !important;
+        /* Remova qualquer background que possa estar causando efeito de corte visual */
+        background: none !important;
+        /* Ajusta o padding ou margem se necessário para dar mais espaço */
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* Target diretamente o st.image para remover arredondamento e garantir visibilidade */
+    div[data-testid="stImage"] {
+        text-align: center;
+        /* Remove o arredondamento de borda do próprio st.image */
+        border-radius: 0 !important;
+        /* Garante que a imagem não seja cortada internamente */
+        overflow: visible !important;
+        /* Garante que a imagem se ajuste sem ser espremida */
+        max-height: none !important; /* Desativa qualquer limite de altura */
+        height: auto !important; /* Deixa a altura se ajustar ao conteúdo */
+        width: auto !important; /* Deixa a largura se ajustar ao conteúdo */
+    }
+
+    /* O elemento img dentro do st.image */
+    div[data-testid="stImage"] img {
+        border-radius: 0 !important;
+        /* Se a imagem estiver sendo espremida, ajuste a altura mínima */
+        min-height: auto !important;
+    }
+    /* --- FIM DA ADIÇÃO CRÍTICA --- */
+
     .stButton>button {
         background-color: var(--primary-color); color: white; border-radius: 8px; height: 3em;
         width: 100%; border: none; font-weight: bold; transition: all 0.2s ease-in-out;
@@ -153,7 +189,7 @@ def formatar_diarias_fracao(dias):
     return f"{dias:.2f}".replace('.',',')
 
 
-# --- Bloco Adicionado: FUNÇÕES DE GERAÇÃO DE PDF ---
+# --- FUNÇÕES DE GERAÇÃO DE PDF ---
 def preparar_proposta_pdf():
     pdf = FPDF()
     pdf.add_page()
@@ -173,34 +209,29 @@ def preparar_proposta_pdf():
 def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
     
-    # Header do PDF
     pdf.set_y(8)
-    pdf.set_text_color(255, 255, 255) # Cor branca para texto no header
+    pdf.set_text_color(255, 255, 255)
     pdf.set_font(font_family, 'B', 16)
     pdf.cell(0, 10, "Proposta de Hospedagem - Condado Dog", 0, 1, "C")
-    pdf.set_text_color(0, 0, 0) # Restaura cor preta
+    pdf.set_text_color(0, 0, 0)
     pdf.ln(15)
 
-    # Seção de Dados do Cliente
     pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "1. Dados do Cliente e Pet(s)", ln=1)
     pdf.set_font(font_family, '', 11)
     pdf.multi_cell(0, 6, f"Responsável: {dados['nome_dono']}\nPet(s): {dados['nomes_caes']}")
     pdf.ln(5)
     
-    # Seção do Período
     pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "2. Período da Estadia", ln=1)
     pdf.set_font(font_family, '', 11)
     pdf.multi_cell(0, 6, f"Check-in: {dados['data_entrada']} às {dados['horario_entrada']}\nCheck-out: {dados['data_saida']} às {dados['horario_saida']}")
     pdf.ln(5)
 
-    # Seção do Orçamento
     pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "3. Resumo do Orçamento", ln=1)
     pdf.set_font(font_family, '', 11)
     
-    # Usando replace para garantir formatação de moeda brasileira
     valor_bruto_str = f"R$ {dados['valor_bruto']:.2f}".replace('.', ',')
     desconto_str = f"- R$ {dados['desconto']:.2f}".replace('.', ',')
     valor_final_str = f"R$ {dados['valor_final']:.2f}".replace('.', ',')
@@ -215,12 +246,10 @@ def gerar_proposta_pdf(dados):
     
     pdf.multi_cell(0, 6, texto_orcamento)
     
-    # Destaque para o Valor Final
     pdf.ln(5)
     pdf.set_font(font_family, 'B', 14)
     pdf.cell(0, 8, f"Valor Final Estimado: {valor_final_str}", ln=1)
 
-    # Salva em memória
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
@@ -232,7 +261,7 @@ df_precos, df_mensal, df_fidelidade = fetch_all_data_from_gsheet()
 
 col1, col2, col3 = st.columns([1, 1, 1])
 with col2:
-    st.image("image_c02280.png")
+    st.image("image_c02280.png", width=180) 
 st.title("Calculadora de Orçamento", anchor=False)
 st.markdown("<p class='subtitle'>Ferramenta interna para simulação de orçamento de hospedagem.</p>", unsafe_allow_html=True)
 st.markdown("---")
@@ -350,10 +379,8 @@ if submitted:
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # --- Bloco Adicionado: Botão de Download do PDF ---
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # Coleta todos os dados para o PDF
                 dados_para_pdf = {
                     "nome_dono": nome_dono,
                     "nomes_caes": ", ".join(nomes_caes),
@@ -377,5 +404,3 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
-
