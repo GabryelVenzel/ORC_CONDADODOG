@@ -232,7 +232,7 @@ df_precos, df_mensal, df_fidelidade = fetch_all_data_from_gsheet()
 
 col1, col2, col3 = st.columns([1, 1, 1])
 with col2:
-    st.image("image_c02280.jpg", width=180)
+    st.image("image_c02280.png", width=180)
 st.title("Calculadora de Orçamento", anchor=False)
 st.markdown("<p class='subtitle'>Ferramenta interna para simulação de orçamento de hospedagem.</p>", unsafe_allow_html=True)
 st.markdown("---")
@@ -377,3 +377,4 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
