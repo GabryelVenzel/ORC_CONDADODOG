@@ -23,7 +23,7 @@ st.markdown("""
         --text-color: #333333; --widget-background: #FFFFFF; --green-color: #28a745;
     }
     .main { background-color: var(--background-color); }
-    .block-container { padding-top: 2rem; padding-bottom: 3rem; padding-left: 2rem; padding-right: 2rem; }
+    .block-container { padding-top: 4rem; padding-bottom: 3rem; padding-left: 2rem; padding-right: 2rem; }
     h1, h2, h3 { color: var(--secondary-color); font-weight: bold; text-align: center; }
     h1 { white-space: nowrap; }
     .subtitle { text-align: center; color: #555; font-size: 1.1em; margin-bottom: 1.5rem; }
@@ -404,3 +404,4 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
