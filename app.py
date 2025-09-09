@@ -29,37 +29,25 @@ st.markdown("""
     .subtitle { text-align: center; color: #555; font-size: 1.1em; margin-bottom: 1.5rem; }
 
     /* --- ADIÇÃO CRÍTICA PARA CORRIGIR O LOGO --- */
-    /* Target o container que envolve o st.image e o st.title */
-    /* Este é o "header" implícito do Streamlit */
     div[data-testid="stVerticalBlock"] > div:nth-child(1) > div:nth-child(1) {
-        /* Remove o arredondamento de borda que o Streamlit pode aplicar */
         border-radius: 0 !important;
-        /* Garante que o conteúdo não seja cortado */
         overflow: visible !important;
-        /* Remova qualquer background que possa estar causando efeito de corte visual */
         background: none !important;
-        /* Ajusta o padding ou margem se necessário para dar mais espaço */
         padding: 0 !important;
         margin: 0 !important;
     }
     
-    /* Target diretamente o st.image para remover arredondamento e garantir visibilidade */
     div[data-testid="stImage"] {
         text-align: center;
-        /* Remove o arredondamento de borda do próprio st.image */
         border-radius: 0 !important;
-        /* Garante que a imagem não seja cortada internamente */
         overflow: visible !important;
-        /* Garante que a imagem se ajuste sem ser espremida */
-        max-height: none !important; /* Desativa qualquer limite de altura */
-        height: auto !important; /* Deixa a altura se ajustar ao conteúdo */
-        width: auto !important; /* Deixa a largura se ajustar ao conteúdo */
+        max-height: none !important;
+        height: auto !important;
+        width: auto !important;
     }
 
-    /* O elemento img dentro do st.image */
     div[data-testid="stImage"] img {
         border-radius: 0 !important;
-        /* Se a imagem estiver sendo espremida, ajuste a altura mínima */
         min-height: auto !important;
     }
     /* --- FIM DA ADIÇÃO CRÍTICA --- */
@@ -98,7 +86,8 @@ def fetch_all_data_from_gsheet():
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
         client = gspread.authorize(creds)
-        spreadsheet = client.open("HotelCanino")
+        # --- LINHA ALTERADA ---
+        spreadsheet = client.open("Condado Dog") # Alterado de "HotelCanino" para "Condado Dog"
         
         worksheet_diaria = spreadsheet.worksheet("Diária")
         df_diaria = pd.DataFrame(worksheet_diaria.get_all_records())
