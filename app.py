@@ -210,7 +210,7 @@ def gerar_proposta_pdf(dados):
 
     # Fonte maior e em negrito para a data
     pdf.set_font(font_family, 'B', 14) 
-    pdf.set_text_color(0, 0, 0) 
+    pdf.set_text_color(255, 255, 255) 
     # Célula da data alinhada à direita
     pdf.cell(w=0, h=10, txt=f"Data: {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='R')
 
@@ -404,6 +404,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
