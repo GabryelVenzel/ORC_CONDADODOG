@@ -239,10 +239,10 @@ def gerar_proposta_pdf(dados):
     obs_text = ("Durante a hospedagem, os pets participarão das atividades de recreação, terão "
                 "monitoramento constante e acesso às áreas de socialização. "
                 "Incluso enriquecimento ambiental e alimentação.")
-    pdf.multi_cell(0, 6, obs_text, 0, 'L')
+    # Alinhamento alterado de 'L' para 'J' (justificado)
+    pdf.multi_cell(0, 6, obs_text, 0, 'J')
 
     # --- RODAPÉ REMOVIDO ---
-    # Todo o código que gerava o texto do rodapé foi retirado.
 
     # Retorna o buffer do PDF para o Streamlit
     buffer = BytesIO()
@@ -398,6 +398,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
