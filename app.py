@@ -214,6 +214,9 @@ def gerar_proposta_pdf(dados):
     # Célula da data alinhada à direita
     pdf.cell(w=0, h=10, txt=f"Data: {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='R')
 
+    #Set cor preta
+    pdf.set_text_color(0, 0, 0) 
+
     # Restaura a margem esquerda para o conteúdo principal
     pdf.set_left_margin(20)
 
@@ -404,6 +407,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
