@@ -240,19 +240,6 @@ def gerar_proposta_pdf(dados):
 
     pdf.ln(8)
 
-    # --- BLOCO DE OBSERVAÇÕES (TEXTO NO PLURAL) ---
-    pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 8, "Obs:", 0, 1)
-    
-    pdf.set_font(font_family, '', 12)
-    obs_text = ("Durante a hospedagem, os pets participarão das atividades de recreação, terão "
-                "monitoramento constante e acesso às áreas de socialização. "
-                "Incluso enriquecimento ambiental e alimentação.")
-    # Alinhamento justificado
-    pdf.multi_cell(0, 6, obs_text, 0, 'J')
-
-    # --- RODAPÉ REMOVIDO ---
-
     # Retorna o buffer do PDF para o Streamlit
     buffer = BytesIO()
     pdf.output(buffer)
@@ -407,6 +394,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
