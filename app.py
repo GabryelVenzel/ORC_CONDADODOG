@@ -203,13 +203,19 @@ def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
     
     # --- CABEÇALHO ---
-    pdf.set_y(68) 
-    pdf.set_left_margin(20) 
-    
-    # Linha com a Data, posicionada à esquerda
-    pdf.set_font(font_family, '', 11)
+    # Posição ajustada para a data
+    pdf.set_y(52)
+    # Define a margem direita para alinhar o texto corretamente
+    pdf.set_right_margin(20)
+
+    # Fonte maior e em negrito para a data
+    pdf.set_font(font_family, 'B', 14) 
     pdf.set_text_color(42, 58, 96) 
-    pdf.cell(w=0, h=10, txt=f"Data {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='L')
+    # Célula da data alinhada à direita
+    pdf.cell(w=0, h=10, txt=f"Data: {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='R')
+
+    # Restaura a margem esquerda para o conteúdo principal
+    pdf.set_left_margin(20)
 
     # --- BLOCO DE INFORMAÇÕES PRINCIPAIS ---
     pdf.set_y(80) 
@@ -239,7 +245,7 @@ def gerar_proposta_pdf(dados):
     obs_text = ("Durante a hospedagem, os pets participarão das atividades de recreação, terão "
                 "monitoramento constante e acesso às áreas de socialização. "
                 "Incluso enriquecimento ambiental e alimentação.")
-    # Alinhamento alterado de 'L' para 'J' (justificado)
+    # Alinhamento justificado
     pdf.multi_cell(0, 6, obs_text, 0, 'J')
 
     # --- RODAPÉ REMOVIDO ---
@@ -398,6 +404,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
