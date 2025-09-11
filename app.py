@@ -183,14 +183,17 @@ def preparar_proposta_pdf():
     pdf = FPDF()
     pdf.add_page()
     
+    # Adiciona a imagem de fundo que já está no seu projeto
     if os.path.exists("fundo_relatorio.png"):
         pdf.image("fundo_relatorio.png", x=0, y=0, w=210, h=297)
     
+    # Tenta carregar as fontes personalizadas (essencial para caracteres especiais)
     try:
         pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
         font_family = 'DejaVu'
     except RuntimeError:
+        # Se a fonte não for encontrada, usa 'Arial' como alternativa
         font_family = 'Arial'
     
     return pdf, font_family
@@ -198,47 +201,72 @@ def preparar_proposta_pdf():
 def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
     
-    pdf.set_y(8)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font(font_family, 'B', 16)
-    pdf.cell(0, 10, "Proposta de Hospedagem - Condado Dog", 0, 1, "C")
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(15)
-
-    pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 8, "1. Dados do Cliente e Pet(s)", ln=1)
+    # --- CABEÇALHO ---
+    pdf.set_y(45)
+    pdf.set_left_margin(20) # Define a margem esquerda para o conteúdo principal
+    
+    # Título "Orçamento" em laranja
+    pdf.set_font(font_family, 'B', 40)
+    pdf.set_text_color(243, 127, 33) # Cor Laranja (RGB)
+    pdf.cell(w=0, h=10, txt="Orçamento", border=0, ln=1, align='L')
+    
+    # Linha com Nº e Data
+    pdf.set_y(68)
     pdf.set_font(font_family, '', 11)
-    pdf.multi_cell(0, 6, f"Responsável: {dados['nome_dono']}\nPet(s): {dados['nomes_caes']}")
-    pdf.ln(5)
+    pdf.set_text_color(42, 58, 96) # Cor Azul Escuro (RGB)
     
+    # O "Nº 00001" é fixo conforme o exemplo, mas pode ser tornado dinâmico
+    pdf.cell(w=95, h=10, txt="Nº 00001", border=0, ln=0, align='L') 
+    pdf.cell(w=0, h=10, txt=f"Data {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='L')
+
+    # --- BLOCO DE INFORMAÇÕES PRINCIPAIS ---
+    pdf.set_y(85)
+    pdf.set_left_margin(20)
+    
+    # Função auxiliar para evitar repetição de código
+    def add_info_line(label, value):
+        pdf.set_font(font_family, 'B', 12)
+        pdf.cell(45, 8, label, 0, 0)
+        pdf.set_font(font_family, '', 12)
+        pdf.cell(0, 8, value, 0, 1)
+
+    add_info_line("Tutor(a):", dados['nome_dono'])
+    add_info_line("Dog(s):", dados['nomes_caes'])
+    add_info_line("Check-in:", f"{dados['data_entrada']} às {dados['horario_entrada'].replace(':', 'H')}")
+    add_info_line("Check-out:", f"{dados['data_saida']} às {dados['horario_saida'].replace(':', 'H')}")
+    add_info_line("Diárias:", str(dados['diarias_cobradas']))
+    add_info_line("Preço Diária:", f"R$ {dados['valor_diaria']:.2f}".replace('.', ','))
+    add_info_line("Valor total da estadia:", f"R$ {dados['valor_final']:.2f}".replace('.', ','))
+
+    pdf.ln(8) # Espaçamento antes das observações
+
+    # --- BLOCO DE OBSERVAÇÕES ---
     pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 8, "2. Período da Estadia", ln=1)
-    pdf.set_font(font_family, '', 11)
-    pdf.multi_cell(0, 6, f"Check-in: {dados['data_entrada']} às {dados['horario_entrada']}\nCheck-out: {dados['data_saida']} às {dados['horario_saida']}")
-    pdf.ln(5)
-
-    pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 8, "3. Resumo do Orçamento", ln=1)
-    pdf.set_font(font_family, '', 11)
+    pdf.cell(0, 8, "Obs:", 0, 1)
     
-    valor_bruto_str = f"R$ {dados['valor_bruto']:.2f}".replace('.', ',')
-    desconto_str = f"- R$ {dados['desconto']:.2f}".replace('.', ',')
-    valor_final_str = f"R$ {dados['valor_final']:.2f}".replace('.', ',')
+    pdf.set_font(font_family, '', 12)
+    # Texto genérico conforme a imagem, adaptado para "pet"
+    obs_text = ("Durante a hospedagem, o(s) pet(s) participará(ão) das atividades de recreação, terá(ão) "
+                "monitoramento constante e acesso às áreas de socialização. "
+                "Incluso enriquecimento ambiental e alimentação")
+    pdf.multi_cell(0, 6, obs_text, 0, 'L')
 
-    texto_orcamento = (
-        f"Diárias Cobradas: {dados['diarias_cobradas']}\n"
-        f"Valor da Diária (por pet): R$ {dados['valor_diaria']:.2f}".replace('.', ',') + "\n"
-        f"Valor Bruto Hotel: {valor_bruto_str}\n"
-    )
-    if dados['desconto'] > 0:
-        texto_orcamento += f"Desconto Daycare: {desconto_str} (referente a {dados['dias_coincidentes']} dia(s))\n"
+    # --- RODAPÉ COM TERMOS E CONDIÇÕES ---
+    # Posicionamento a 3.5 cm do final da página
+    pdf.set_y(-35)
+    pdf.set_left_margin(60) # Aumenta a margem para alinhar com o design
     
-    pdf.multi_cell(0, 6, texto_orcamento)
+    pdf.set_text_color(255, 255, 255) # Texto branco
+    pdf.set_font(font_family, 'B', 11)
+    pdf.cell(0, 6, "Termos e Condições", 0, 1)
     
-    pdf.ln(5)
-    pdf.set_font(font_family, 'B', 14)
-    pdf.cell(0, 8, f"Valor Final Estimado: {valor_final_str}", ln=1)
-
+    pdf.set_font(font_family, '', 9)
+    lorem_ipsum = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                   "Suspendisse congue ut eros et placerat. Sed sodales pellentesque "
+                   "quem, eu faucibus turpis facilisis quis. Morbi")
+    pdf.multi_cell(0, 5, lorem_ipsum, 0, 'L')
+    
+    # Retorna o buffer do PDF para o Streamlit
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
@@ -393,5 +421,6 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
