@@ -179,54 +179,32 @@ def formatar_diarias_fracao(dias):
 
 
 # --- FUNÇÕES DE GERAÇÃO DE PDF ---
-def preparar_proposta_pdf():
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Adiciona a imagem de fundo que já está no seu projeto
-    if os.path.exists("fundo_relatorio.png"):
-        pdf.image("fundo_relatorio.png", x=0, y=0, w=210, h=297)
-    
-    # Tenta carregar as fontes personalizadas (essencial para caracteres especiais)
-    try:
-        pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-        pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
-        font_family = 'DejaVu'
-    except RuntimeError:
-        # Se a fonte não for encontrada, usa 'Arial' como alternativa
-        font_family = 'Arial'
-    
-    return pdf, font_family
-
 def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
     
     # --- CABEÇALHO ---
     pdf.set_y(45)
-    pdf.set_left_margin(20) # Define a margem esquerda para o conteúdo principal
+    pdf.set_left_margin(20) 
     
     # Título "Orçamento" em laranja
     pdf.set_font(font_family, 'B', 40)
-    pdf.set_text_color(243, 127, 33) # Cor Laranja (RGB)
+    pdf.set_text_color(243, 127, 33) 
     pdf.cell(w=0, h=10, txt="Orçamento", border=0, ln=1, align='L')
     
-    # Linha com Nº e Data
+    # Linha com a Data (célula "Nº 00001" removida)
     pdf.set_y(68)
     pdf.set_font(font_family, '', 11)
-    pdf.set_text_color(42, 58, 96) # Cor Azul Escuro (RGB)
+    pdf.set_text_color(42, 58, 96) 
     
-    # O "Nº 00001" é fixo conforme o exemplo, mas pode ser tornado dinâmico
-    pdf.cell(w=95, h=10, txt="Nº 00001", border=0, ln=0, align='L') 
     pdf.cell(w=0, h=10, txt=f"Data {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='L')
 
     # --- BLOCO DE INFORMAÇÕES PRINCIPAIS ---
     pdf.set_y(85)
-    pdf.set_left_margin(20)
     
-    # Função auxiliar para evitar repetição de código
+    # Função auxiliar com largura da coluna de label aumentada para corrigir quebra de linha
     def add_info_line(label, value):
         pdf.set_font(font_family, 'B', 12)
-        pdf.cell(45, 8, label, 0, 0)
+        pdf.cell(55, 8, label, 0, 0) # Largura aumentada de 45 para 55
         pdf.set_font(font_family, '', 12)
         pdf.cell(0, 8, value, 0, 1)
 
@@ -238,25 +216,42 @@ def gerar_proposta_pdf(dados):
     add_info_line("Preço Diária:", f"R$ {dados['valor_diaria']:.2f}".replace('.', ','))
     add_info_line("Valor total da estadia:", f"R$ {dados['valor_final']:.2f}".replace('.', ','))
 
-    pdf.ln(8) # Espaçamento antes das observações
+    pdf.ln(8)
 
-    # --- BLOCO DE OBSERVAÇÕES ---
+    # --- BLOCO DE OBSERVAÇÕES (TEXTO NO PLURAL) ---
     pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "Obs:", 0, 1)
     
     pdf.set_font(font_family, '', 12)
-    # Texto genérico conforme a imagem, adaptado para "pet"
-    obs_text = ("Durante a hospedagem, o(s) pet(s) participará(ão) das atividades de recreação, terá(ão) "
+    # Texto alterado para ficar sempre no plural
+    obs_text = ("Durante a hospedagem, os pets participarão das atividades de recreação, terão "
                 "monitoramento constante e acesso às áreas de socialização. "
-                "Incluso enriquecimento ambiental e alimentação")
+                "Incluso enriquecimento ambiental e alimentação.")
     pdf.multi_cell(0, 6, obs_text, 0, 'L')
 
-    # --- RODAPÉ COM TERMOS E CONDIÇÕES ---
-    # Posicionamento a 3.5 cm do final da página
-    pdf.set_y(-35)
-    pdf.set_left_margin(60) # Aumenta a margem para alinhar com o design
+    # --- RODAPÉ REESTRUTURADO ---
+    # Posicionamento a 4.5 cm do final da página para mais espaço
+    pdf.set_y(-45)
     
-    pdf.set_text_color(255, 255, 255) # Texto branco
+    # COLUNA ESQUERDA: Informações da Empresa
+    pdf.set_left_margin(20)
+    pdf.set_x(20)
+    pdf.set_font(font_family, 'B', 11)
+    pdf.set_text_color(42, 58, 96)
+    pdf.cell(0, 6, "CONDADO DOG", 0, 1)
+    pdf.set_font(font_family, '', 9)
+    pdf.cell(0, 5, "HOTEL E DAYCARE", 0, 1)
+    pdf.ln(2)
+    pdf.cell(0, 5, "CNPJ: 446.184.160.001/43", 0, 1)
+    pdf.cell(0, 5, "Email: condadodog@gmail.com", 0, 1)
+    pdf.multi_cell(0, 5, "Endereço: R. Prof. José C. Holtz, 151, Residencial Primo, Boituva - SP, 18557-440", 0, 'L')
+
+    # COLUNA DIREITA: Termos e Condições
+    pdf.set_y(-35) # Posiciona no início da área de texto branco do rodapé
+    pdf.set_left_margin(110) # Define a margem para a segunda coluna
+    pdf.set_x(110)
+    
+    pdf.set_text_color(255, 255, 255) 
     pdf.set_font(font_family, 'B', 11)
     pdf.cell(0, 6, "Termos e Condições", 0, 1)
     
@@ -270,7 +265,6 @@ def gerar_proposta_pdf(dados):
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
-
 
 # --- INTERFACE DO USUÁRIO (STREAMLIT) ---
 
@@ -421,6 +415,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
