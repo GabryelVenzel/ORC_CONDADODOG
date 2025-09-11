@@ -179,23 +179,41 @@ def formatar_diarias_fracao(dias):
 
 
 # --- FUNÇÕES DE GERAÇÃO DE PDF ---
+# --- FUNÇÕES DE GERAÇÃO DE PDF ---
+
+def preparar_proposta_pdf():
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Adiciona a imagem de fundo que já está no seu projeto
+    if os.path.exists("fundo_relatorio.png"):
+        pdf.image("fundo_relatorio.png", x=0, y=0, w=210, h=297)
+    
+    # Tenta carregar as fontes personalizadas (essencial para caracteres especiais)
+    try:
+        pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+        pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
+        font_family = 'DejaVu'
+    except RuntimeError:
+        # Se a fonte não for encontrada, usa 'Arial' como alternativa
+        font_family = 'Arial'
+    
+    return pdf, font_family
+
 def gerar_proposta_pdf(dados):
+    # Esta linha agora vai funcionar, pois a função acima existe
     pdf, font_family = preparar_proposta_pdf()
     
     # --- CABEÇALHO ---
-    # Posição inicial dos elementos
     pdf.set_y(68) 
     pdf.set_left_margin(20) 
     
-    # Título "Orçamento" removido, pois já está na imagem de fundo.
-    
-    # Linha com a Data, posicionada à esquerda (onde ficava o "Nº 00001")
+    # Linha com a Data, posicionada à esquerda
     pdf.set_font(font_family, '', 11)
     pdf.set_text_color(42, 58, 96) 
     pdf.cell(w=0, h=10, txt=f"Data {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='L')
 
     # --- BLOCO DE INFORMAÇÕES PRINCIPAIS ---
-    # Posição ajustada para cima após a remoção do título
     pdf.set_y(80) 
     
     # Função auxiliar
@@ -211,7 +229,6 @@ def gerar_proposta_pdf(dados):
     add_info_line("Check-out:", f"{dados['data_saida']} às {dados['horario_saida'].replace(':', 'H')}")
     add_info_line("Diárias:", str(dados['diarias_cobradas']))
     add_info_line("Preço Diária:", f"R$ {dados['valor_diaria']:.2f}".replace('.', ','))
-    # Label alterado para "Valor Total"
     add_info_line("Valor Total:", f"R$ {dados['valor_final']:.2f}".replace('.', ',')) 
 
     pdf.ln(8)
@@ -411,6 +428,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
