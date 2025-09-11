@@ -179,7 +179,6 @@ def formatar_diarias_fracao(dias):
 
 
 # --- FUNÇÕES DE GERAÇÃO DE PDF ---
-# --- FUNÇÕES DE GERAÇÃO DE PDF ---
 
 def preparar_proposta_pdf():
     pdf = FPDF()
@@ -201,7 +200,6 @@ def preparar_proposta_pdf():
     return pdf, font_family
 
 def gerar_proposta_pdf(dados):
-    # Esta linha agora vai funcionar, pois a função acima existe
     pdf, font_family = preparar_proposta_pdf()
     
     # --- CABEÇALHO ---
@@ -243,37 +241,9 @@ def gerar_proposta_pdf(dados):
                 "Incluso enriquecimento ambiental e alimentação.")
     pdf.multi_cell(0, 6, obs_text, 0, 'L')
 
-    # --- RODAPÉ REESTRUTURADO ---
-    pdf.set_y(-45)
-    
-    # COLUNA ESQUERDA: Informações da Empresa
-    pdf.set_left_margin(20)
-    pdf.set_x(20)
-    pdf.set_font(font_family, 'B', 11)
-    pdf.set_text_color(42, 58, 96)
-    pdf.cell(0, 6, "CONDADO DOG", 0, 1)
-    pdf.set_font(font_family, '', 9)
-    pdf.cell(0, 5, "HOTEL E DAYCARE", 0, 1)
-    pdf.ln(2)
-    pdf.cell(0, 5, "CNPJ: 446.184.160.001/43", 0, 1)
-    pdf.cell(0, 5, "Email: condadodog@gmail.com", 0, 1)
-    pdf.multi_cell(0, 5, "Endereço: R. Prof. José C. Holtz, 151, Residencial Primo, Boituva - SP, 18557-440", 0, 'L')
+    # --- RODAPÉ REMOVIDO ---
+    # Todo o código que gerava o texto do rodapé foi retirado.
 
-    # COLUNA DIREITA: Termos e Condições
-    pdf.set_y(-35) 
-    pdf.set_left_margin(110)
-    pdf.set_x(110)
-    
-    pdf.set_text_color(255, 255, 255) 
-    pdf.set_font(font_family, 'B', 11)
-    pdf.cell(0, 6, "Termos e Condições", 0, 1)
-    
-    pdf.set_font(font_family, '', 9)
-    lorem_ipsum = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                   "Suspendisse congue ut eros et placerat. Sed sodales pellentesque "
-                   "quem, eu faucibus turpis facilisis quis. Morbi")
-    pdf.multi_cell(0, 5, lorem_ipsum, 0, 'L')
-    
     # Retorna o buffer do PDF para o Streamlit
     buffer = BytesIO()
     pdf.output(buffer)
@@ -428,6 +398,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
