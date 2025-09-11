@@ -183,28 +183,25 @@ def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
     
     # --- CABEÇALHO ---
-    pdf.set_y(45)
+    # Posição inicial dos elementos
+    pdf.set_y(68) 
     pdf.set_left_margin(20) 
     
-    # Título "Orçamento" em laranja
-    pdf.set_font(font_family, 'B', 40)
-    pdf.set_text_color(243, 127, 33) 
-    pdf.cell(w=0, h=10, txt="Orçamento", border=0, ln=1, align='L')
+    # Título "Orçamento" removido, pois já está na imagem de fundo.
     
-    # Linha com a Data (célula "Nº 00001" removida)
-    pdf.set_y(68)
+    # Linha com a Data, posicionada à esquerda (onde ficava o "Nº 00001")
     pdf.set_font(font_family, '', 11)
     pdf.set_text_color(42, 58, 96) 
-    
     pdf.cell(w=0, h=10, txt=f"Data {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='L')
 
     # --- BLOCO DE INFORMAÇÕES PRINCIPAIS ---
-    pdf.set_y(85)
+    # Posição ajustada para cima após a remoção do título
+    pdf.set_y(80) 
     
-    # Função auxiliar com largura da coluna de label aumentada para corrigir quebra de linha
+    # Função auxiliar
     def add_info_line(label, value):
         pdf.set_font(font_family, 'B', 12)
-        pdf.cell(55, 8, label, 0, 0) # Largura aumentada de 45 para 55
+        pdf.cell(55, 8, label, 0, 0)
         pdf.set_font(font_family, '', 12)
         pdf.cell(0, 8, value, 0, 1)
 
@@ -214,7 +211,8 @@ def gerar_proposta_pdf(dados):
     add_info_line("Check-out:", f"{dados['data_saida']} às {dados['horario_saida'].replace(':', 'H')}")
     add_info_line("Diárias:", str(dados['diarias_cobradas']))
     add_info_line("Preço Diária:", f"R$ {dados['valor_diaria']:.2f}".replace('.', ','))
-    add_info_line("Valor total da estadia:", f"R$ {dados['valor_final']:.2f}".replace('.', ','))
+    # Label alterado para "Valor Total"
+    add_info_line("Valor Total:", f"R$ {dados['valor_final']:.2f}".replace('.', ',')) 
 
     pdf.ln(8)
 
@@ -223,14 +221,12 @@ def gerar_proposta_pdf(dados):
     pdf.cell(0, 8, "Obs:", 0, 1)
     
     pdf.set_font(font_family, '', 12)
-    # Texto alterado para ficar sempre no plural
     obs_text = ("Durante a hospedagem, os pets participarão das atividades de recreação, terão "
                 "monitoramento constante e acesso às áreas de socialização. "
                 "Incluso enriquecimento ambiental e alimentação.")
     pdf.multi_cell(0, 6, obs_text, 0, 'L')
 
     # --- RODAPÉ REESTRUTURADO ---
-    # Posicionamento a 4.5 cm do final da página para mais espaço
     pdf.set_y(-45)
     
     # COLUNA ESQUERDA: Informações da Empresa
@@ -247,8 +243,8 @@ def gerar_proposta_pdf(dados):
     pdf.multi_cell(0, 5, "Endereço: R. Prof. José C. Holtz, 151, Residencial Primo, Boituva - SP, 18557-440", 0, 'L')
 
     # COLUNA DIREITA: Termos e Condições
-    pdf.set_y(-35) # Posiciona no início da área de texto branco do rodapé
-    pdf.set_left_margin(110) # Define a margem para a segunda coluna
+    pdf.set_y(-35) 
+    pdf.set_left_margin(110)
     pdf.set_x(110)
     
     pdf.set_text_color(255, 255, 255) 
@@ -415,6 +411,7 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
+
 
 
 
