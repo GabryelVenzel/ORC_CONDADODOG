@@ -239,7 +239,8 @@ df_precos, df_mensal, df_fidelidade = fetch_all_data_from_gsheet()
 
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
-    st.image("logo.png") # Assumindo que o logo se chama logo.png
+    if os.path.exists("logo.png"):
+        st.image("logo.png")
 st.title("Calculadora de Orçamento", anchor=False)
 st.markdown("<p class='subtitle'>Ferramenta interna para simulação de orçamento de hospedagem.</p>", unsafe_allow_html=True)
 st.markdown("---")
@@ -402,6 +403,4 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{now_brasilia.strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
-
 
