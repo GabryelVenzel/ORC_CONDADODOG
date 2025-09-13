@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# CSS (Com ADIÇÕES para corrigir o logo)
+# CSS
 st.markdown("""
 <style>
     :root {
@@ -28,31 +28,7 @@ st.markdown("""
     h1, h2, h3 { color: var(--secondary-color); font-weight: bold; text-align: center; }
     h1 { white-space: nowrap; }
     .subtitle { text-align: center; color: #555; font-size: 1.1em; margin-bottom: 1.5rem; }
-
-    /* --- ADIÇÃO CRÍTICA PARA CORRIGIR O LOGO --- */
-    div[data-testid="stVerticalBlock"] > div:nth-child(1) > div:nth-child(1) {
-        border-radius: 0 !important;
-        overflow: visible !important;
-        background: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-    
-    div[data-testid="stImage"] {
-        text-align: center;
-        border-radius: 0 !important;
-        overflow: visible !important;
-        max-height: none !important;
-        height: auto !important;
-        width: auto !important;
-    }
-
-    div[data-testid="stImage"] img {
-        border-radius: 0 !important;
-        min-height: auto !important;
-    }
-    /* --- FIM DA ADIÇÃO CRÍTICA --- */
-
+    div[data-testid="stImage"] { text-align: center; }
     .stButton>button {
         background-color: var(--primary-color); color: white; border-radius: 8px; height: 3em;
         width: 100%; border: none; font-weight: bold; transition: all 0.2s ease-in-out;
@@ -83,7 +59,6 @@ st.markdown("""
 # --- CONEXÃO COM GOOGLE SHEETS ---
 @st.cache_resource(ttl=600)
 def get_gsheet_client():
-    """Autoriza e retorna o cliente gspread."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
     return gspread.authorize(creds)
@@ -119,17 +94,14 @@ def fetch_all_data_from_gsheet():
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 def salvar_orcamento_gsheet(dados_orcamento):
-    """Salva uma lista de dados como uma nova linha na aba 'Registro de Orçamentos'."""
     try:
         client = get_gsheet_client()
         spreadsheet = client.open("Condado Dog")
         worksheet = spreadsheet.worksheet("Registro de Orçamentos")
-        # Converte todos os valores para string para garantir a inserção
         dados_formatados = [str(dado) for dado in dados_orcamento]
         worksheet.append_row(dados_formatados, value_input_option='USER_ENTERED')
         st.info("✅ Orçamento registrado com sucesso no histórico!")
     except Exception as e:
-        # Mensagem de erro mais detalhada
         st.error(f"Não foi possível salvar o orçamento na planilha. Verifique se a aba 'Registro de Orçamentos' existe e se o nome está exatamente correto.")
         st.error(f"Detalhe do erro: {e}")
 
@@ -159,16 +131,12 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
     if dias_para_lookup == 0: dias_para_lookup = 1
     coluna_preco = 'Alta temporada' if alta_temporada else 'Valor da Diária'
 
-    # --- LÓGICA DE PREÇO MODIFICADA ---
-    # 1. Pega o valor da diária para 1 dia (base para fração)
     preco_row_base = df[df['Quantidade de Diárias'] == 1]
     if not preco_row_base.empty:
         valor_diaria_base = preco_row_base.iloc[0][coluna_preco]
     else:
-        # Fallback: se não houver entrada para '1', usa o menor valor como base
         valor_diaria_base = df.sort_values('Quantidade de Diárias').iloc[0][coluna_preco]
     
-    # 2. Pega o valor da diária para o pacote de dias inteiros
     if dias_para_lookup > df['Quantidade de Diárias'].max():
         valor_diaria_pacote = df.sort_values('Quantidade de Diárias', ascending=False).iloc[0][coluna_preco]
     else:
@@ -179,16 +147,12 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
             preco_row = df[df['Quantidade de Diárias'] <= dias_para_lookup].sort_values('Quantidade de Diárias', ascending=False).iloc[0]
             valor_diaria_pacote = preco_row[coluna_preco]
 
-    # 3. Calcula o valor total com a nova regra
     dias_inteiros = math.floor(qtd_diarias_cobradas)
     fracao_diaria = qtd_diarias_cobradas - dias_inteiros
-    
     custo_dias_inteiros = dias_inteiros * valor_diaria_pacote
-    custo_fracao = fracao_diaria * valor_diaria_base # Fração usa o preço de 1 diária
-    
+    custo_fracao = fracao_diaria * valor_diaria_base
     valor_total = num_caes * (custo_dias_inteiros + custo_fracao)
     
-    # Retorna o valor_diaria_pacote para exibição na tela
     return qtd_diarias_cobradas, valor_diaria_pacote, valor_total
 
 def calcular_desconto_mensalista(entrada_dt, saida_dt, dias_plano_daycare, df_plano, num_caes):
@@ -234,14 +198,12 @@ def preparar_proposta_pdf():
         font_family = 'Arial'
     return pdf, font_family
 
-# --- FUNÇÃO DE PDF MODIFICADA ---
 def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
     pdf.set_y(52)
     pdf.set_right_margin(20)
     pdf.set_font(font_family, 'B', 14) 
     pdf.set_text_color(255, 255, 255) 
-    # Usa a data do orçamento vinda do dicionário (já com fuso-horário)
     pdf.cell(w=0, h=10, txt=f"Data: {dados.get('data_orcamento', '')}", border=0, ln=1, align='R')
     pdf.set_text_color(0, 0, 0) 
     pdf.set_left_margin(20)
@@ -261,13 +223,12 @@ def gerar_proposta_pdf(dados):
     add_info_line("Preço Diária:", f"R$ {dados['valor_diaria']:.2f}".replace('.', ','))
     add_info_line("Valor Total:", f"R$ {dados['valor_final']:.2f}".replace('.', ',')) 
 
-    # Adiciona o campo de observação apenas se ele foi preenchido
     if dados.get("observacao"):
-        pdf.ln(8) # Adiciona um espaço
+        pdf.ln(8) 
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(0, 8, "Observações:", 0, 1)
         pdf.set_font(font_family, '', 12)
-        pdf.multi_cell(0, 6, dados["observacao"]) # multi_cell para textos longos
+        pdf.multi_cell(0, 6, dados["observacao"])
 
     buffer = BytesIO()
     pdf.output(buffer)
@@ -276,9 +237,9 @@ def gerar_proposta_pdf(dados):
 # --- INTERFACE DO USUÁRIO (STREAMLIT) ---
 df_precos, df_mensal, df_fidelidade = fetch_all_data_from_gsheet()
 
-col1, col2, col3 = st.columns([1, 1, 1])
+col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
-    st.image("image_c02280.png", width=220) 
+    st.image("logo.png") # Assumindo que o logo se chama logo.png
 st.title("Calculadora de Orçamento", anchor=False)
 st.markdown("<p class='subtitle'>Ferramenta interna para simulação de orçamento de hospedagem.</p>", unsafe_allow_html=True)
 st.markdown("---")
@@ -324,7 +285,6 @@ with st.container(border=True):
             data_saida = st.date_input("Data de Saída", format="DD/MM/YYYY")
             horario_saida = st.time_input("Horário de Saída", value=time(12, 0))
         
-        # --- CAMPO DE OBSERVAÇÃO ADICIONADO AQUI ---
         observacao = st.text_area("Observações", placeholder="Digite aqui alguma observação para a proposta (ex: medicação, cuidados especiais, etc.)")
         
         st.markdown("<br>", unsafe_allow_html=True)
@@ -393,14 +353,15 @@ if submitted:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # --- LÓGICA DE DATA E HORA COM FUSO-HORÁRIO DE BRASÍLIA ---
+                # --- LÓGICA DE DATA E HORA COM FUSO-HORÁRIO DE BRASÍLIA (MÉTODO CORRIGIDO) ---
                 brasilia_tz = pytz.timezone('America/Sao_Paulo')
-                now_brasilia = datetime.now(brasilia_tz)
+                now_utc = datetime.now(pytz.utc)
+                now_brasilia = now_utc.astimezone(brasilia_tz)
 
-                # --- LISTA DE DADOS MODIFICADA PARA O NOVO FORMATO DA PLANILHA ---
+                # --- LISTA DE DADOS AJUSTADA PARA A ORDEM CORRETA DAS COLUNAS ---
                 dados_para_salvar = [
-                    now_brasilia.strftime("%d/%m/%Y"),   # Apenas a data de Brasília
-                    now_brasilia.strftime("%H:%M:%S"), # Apenas o horário de Brasília
+                    now_brasilia.strftime("%d/%m/%Y"),
+                    now_brasilia.strftime("%H:%M:%S"),
                     nome_dono,
                     ", ".join(nomes_caes),
                     entrada_datetime.strftime("%d/%m/%Y"), 
@@ -416,9 +377,8 @@ if submitted:
                 ]
                 salvar_orcamento_gsheet(dados_para_salvar)
                 
-                # --- DICIONÁRIO PARA PDF ATUALIZADO ---
                 dados_para_pdf = {
-                    "data_orcamento": now_brasilia.strftime('%d/%m/%Y'), # Passa a data correta para o PDF
+                    "data_orcamento": now_brasilia.strftime('%d/%m/%Y'),
                     "nome_dono": nome_dono,
                     "nomes_caes": ", ".join(nomes_caes),
                     "data_entrada": data_entrada.strftime('%d/%m/%Y'),
@@ -439,11 +399,9 @@ if submitted:
                 st.download_button(
                     label="📄 Download da Proposta em PDF",
                     data=pdf_bytes,
-                    file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                    file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{now_brasilia.strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
-
 
 
 
