@@ -233,6 +233,7 @@ def preparar_proposta_pdf():
         font_family = 'Arial'
     return pdf, font_family
 
+# --- FUNÇÃO DE PDF MODIFICADA ---
 def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
     pdf.set_y(52)
@@ -258,7 +259,14 @@ def gerar_proposta_pdf(dados):
     add_info_line("Preço Diária:", f"R$ {dados['valor_diaria']:.2f}".replace('.', ','))
     add_info_line("Valor Total:", f"R$ {dados['valor_final']:.2f}".replace('.', ',')) 
 
-    pdf.ln(8)
+    # Adiciona o campo de observação apenas se ele foi preenchido
+    if dados.get("observacao"):
+        pdf.ln(8) # Adiciona um espaço
+        pdf.set_font(font_family, 'B', 12)
+        pdf.cell(0, 8, "Observações:", 0, 1)
+        pdf.set_font(font_family, '', 12)
+        pdf.multi_cell(0, 6, dados["observacao"]) # multi_cell para textos longos
+
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
@@ -308,11 +316,15 @@ with st.container(border=True):
         st.subheader("🗓️ Período da Estadia")
         col3, col4 = st.columns(2)
         with col3:
-            data_entrada = st.date_input("Data de Entrada", format="DD/MM/YYYY")
+            data_entrada = st.date_input("Data de Entrada", value=datetime.strptime("13/09/2025", "%d/%m/%Y"), format="DD/MM/YYYY")
             horario_entrada = st.time_input("Horário de Entrada", value=time(14, 0))
         with col4:
-            data_saida = st.date_input("Data de Saída", format="DD/MM/YYYY")
+            data_saida = st.date_input("Data de Saída", value=datetime.strptime("18/09/2025", "%d/%m/%Y"), format="DD/MM/YYYY")
             horario_saida = st.time_input("Horário de Saída", value=time(12, 0))
+        
+        # --- CAMPO DE OBSERVAÇÃO ADICIONADO AQUI ---
+        observacao = st.text_area("Observações", placeholder="Digite aqui alguma observação para a proposta (ex: medicação, cuidados especiais, etc.)")
+        
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("Calcular Orçamento")
 
@@ -367,7 +379,7 @@ if submitted:
                             <div class="metric-value">{valor_bruto_formatado}</div>
                         </div>
                         <div class="metric-box" title="{help_text}">
-                            <div class="metric-label">Desconto Daycare</div>
+                            <div class.metric-label">Desconto Daycare</div>
                             <div class="metric-value green">{desconto_formatado}</div>
                         </div>
                     </div>
@@ -379,24 +391,24 @@ if submitted:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # --- LISTA DE DADOS MODIFICADA PARA O NOVO FORMATO DA PLANILHA ---
                 dados_para_salvar = [
                     datetime.now().strftime("%d/%m/%Y %H:%M"),
                     nome_dono,
                     ", ".join(nomes_caes),
-                    entrada_datetime.strftime("%d/%m/%Y"), # Apenas a data
-                    entrada_datetime.strftime("%H:%M"),   # Apenas o horário
-                    saida_datetime.strftime("%d/%m/%Y"),   # Apenas a data
-                    saida_datetime.strftime("%H:%M"),     # Apenas o horário
+                    entrada_datetime.strftime("%d/%m/%Y"), 
+                    entrada_datetime.strftime("%H:%M"),   
+                    saida_datetime.strftime("%d/%m/%Y"),   
+                    saida_datetime.strftime("%H:%M"),     
                     st.session_state.tipo_cliente,
                     "Alta" if alta_temporada else "Normal",
-                    f"{qtd_diarias:.2f}".replace('.', ','), # Formatado com vírgula
-                    f"{valor_diaria:.2f}".replace('.', ','), # Formatado com vírgula
-                    f"{desconto:.2f}".replace('.', ','),     # Formatado com vírgula
-                    f"{valor_final:.2f}".replace('.', ',')      # Formatado com vírgula
+                    f"{qtd_diarias:.2f}".replace('.', ','), 
+                    f"{valor_diaria:.2f}".replace('.', ','), 
+                    f"{desconto:.2f}".replace('.', ','),     
+                    f"{valor_final:.2f}".replace('.', ',')      
                 ]
                 salvar_orcamento_gsheet(dados_para_salvar)
                 
+                # --- DICIONÁRIO PARA PDF ATUALIZADO ---
                 dados_para_pdf = {
                     "nome_dono": nome_dono,
                     "nomes_caes": ", ".join(nomes_caes),
@@ -409,7 +421,8 @@ if submitted:
                     "valor_bruto": valor_total_base,
                     "desconto": desconto,
                     "dias_coincidentes": dias_coincidentes,
-                    "valor_final": valor_final
+                    "valor_final": valor_final,
+                    "observacao": observacao # Adiciona a observação aqui
                 }
                 
                 pdf_bytes = gerar_proposta_pdf(dados_para_pdf)
@@ -420,7 +433,6 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
 
 
 
