@@ -117,7 +117,6 @@ def fetch_all_data_from_gsheet():
         st.error(f"Erro ao conectar com o Google Sheets: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-# --- FUNÇÃO MODIFICADA PARA MELHOR DEBUG ---
 def salvar_orcamento_gsheet(dados_orcamento):
     """Salva uma lista de dados como uma nova linha na aba 'Registro de Orçamentos'."""
     try:
@@ -380,19 +379,21 @@ if submitted:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # --- CHAMADA PARA SALVAR OS DADOS ---
+                # --- LISTA DE DADOS MODIFICADA PARA O NOVO FORMATO DA PLANILHA ---
                 dados_para_salvar = [
                     datetime.now().strftime("%d/%m/%Y %H:%M"),
                     nome_dono,
                     ", ".join(nomes_caes),
-                    entrada_datetime.strftime("%d/%m/%Y %H:%M"),
-                    saida_datetime.strftime("%d/%m/%Y %H:%M"),
+                    entrada_datetime.strftime("%d/%m/%Y"), # Apenas a data
+                    entrada_datetime.strftime("%H:%M"),   # Apenas o horário
+                    saida_datetime.strftime("%d/%m/%Y"),   # Apenas a data
+                    saida_datetime.strftime("%H:%M"),     # Apenas o horário
                     st.session_state.tipo_cliente,
                     "Alta" if alta_temporada else "Normal",
-                    qtd_diarias,
-                    valor_diaria,
-                    desconto,
-                    valor_final
+                    f"{qtd_diarias:.2f}".replace('.', ','), # Formatado com vírgula
+                    f"{valor_diaria:.2f}".replace('.', ','), # Formatado com vírgula
+                    f"{desconto:.2f}".replace('.', ','),     # Formatado com vírgula
+                    f"{valor_final:.2f}".replace('.', ',')      # Formatado com vírgula
                 ]
                 salvar_orcamento_gsheet(dados_para_salvar)
                 
@@ -419,12 +420,6 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
-
-
-
-
-
 
 
 
