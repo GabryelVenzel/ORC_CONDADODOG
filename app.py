@@ -117,6 +117,7 @@ def fetch_all_data_from_gsheet():
         st.error(f"Erro ao conectar com o Google Sheets: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
+# --- FUNÇÃO MODIFICADA PARA MELHOR DEBUG ---
 def salvar_orcamento_gsheet(dados_orcamento):
     """Salva uma lista de dados como uma nova linha na aba 'Registro de Orçamentos'."""
     try:
@@ -128,7 +129,9 @@ def salvar_orcamento_gsheet(dados_orcamento):
         worksheet.append_row(dados_formatados, value_input_option='USER_ENTERED')
         st.info("✅ Orçamento registrado com sucesso no histórico!")
     except Exception as e:
-        st.error(f"Não foi possível salvar o orçamento na planilha: {e}")
+        # Mensagem de erro mais detalhada
+        st.error(f"Não foi possível salvar o orçamento na planilha. Verifique se a aba 'Registro de Orçamentos' existe e se o nome está exatamente correto.")
+        st.error(f"Detalhe do erro: {e}")
 
 
 # --- LÓGICAS DE CÁLCULO ---
@@ -416,7 +419,6 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
 
 
 
