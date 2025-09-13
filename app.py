@@ -80,14 +80,18 @@ st.markdown("""
 
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
+@st.cache_resource(ttl=600)
+def get_gsheet_client():
+    """Autoriza e retorna o cliente gspread."""
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
+    return gspread.authorize(creds)
+
 @st.cache_data(ttl=600)
 def fetch_all_data_from_gsheet():
     try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
-        client = gspread.authorize(creds)
-        # --- LINHA ALTERADA ---
-        spreadsheet = client.open("Condado Dog") # Alterado de "HotelCanino" para "Condado Dog"
+        client = get_gsheet_client()
+        spreadsheet = client.open("Condado Dog")
         
         worksheet_diaria = spreadsheet.worksheet("Diária")
         df_diaria = pd.DataFrame(worksheet_diaria.get_all_records())
@@ -113,6 +117,20 @@ def fetch_all_data_from_gsheet():
         st.error(f"Erro ao conectar com o Google Sheets: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
+def salvar_orcamento_gsheet(dados_orcamento):
+    """Salva uma lista de dados como uma nova linha na aba 'Registro de Orçamentos'."""
+    try:
+        client = get_gsheet_client()
+        spreadsheet = client.open("Condado Dog")
+        worksheet = spreadsheet.worksheet("Registro de Orçamentos")
+        # Converte todos os valores para string para garantir a inserção
+        dados_formatados = [str(dado) for dado in dados_orcamento]
+        worksheet.append_row(dados_formatados, value_input_option='USER_ENTERED')
+        st.info("✅ Orçamento registrado com sucesso no histórico!")
+    except Exception as e:
+        st.error(f"Não foi possível salvar o orçamento na planilha: {e}")
+
+
 # --- LÓGICAS DE CÁLCULO ---
 def calcular_diarias_com_tolerancia(total_horas):
     if total_horas <= 0: return 0.25
@@ -137,17 +155,38 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
     dias_para_lookup = int(qtd_diarias_cobradas)
     if dias_para_lookup == 0: dias_para_lookup = 1
     coluna_preco = 'Alta temporada' if alta_temporada else 'Valor da Diária'
+
+    # --- LÓGICA DE PREÇO MODIFICADA ---
+    # 1. Pega o valor da diária para 1 dia (base para fração)
+    preco_row_base = df[df['Quantidade de Diárias'] == 1]
+    if not preco_row_base.empty:
+        valor_diaria_base = preco_row_base.iloc[0][coluna_preco]
+    else:
+        # Fallback: se não houver entrada para '1', usa o menor valor como base
+        valor_diaria_base = df.sort_values('Quantidade de Diárias').iloc[0][coluna_preco]
+    
+    # 2. Pega o valor da diária para o pacote de dias inteiros
     if dias_para_lookup > df['Quantidade de Diárias'].max():
-        valor_diaria = df.sort_values('Quantidade de Diárias', ascending=False).iloc[0][coluna_preco]
+        valor_diaria_pacote = df.sort_values('Quantidade de Diárias', ascending=False).iloc[0][coluna_preco]
     else:
         preco_row = df[df['Quantidade de Diárias'] == dias_para_lookup]
         if not preco_row.empty:
-            valor_diaria = preco_row.iloc[0][coluna_preco]
+            valor_diaria_pacote = preco_row.iloc[0][coluna_preco]
         else:
             preco_row = df[df['Quantidade de Diárias'] <= dias_para_lookup].sort_values('Quantidade de Diárias', ascending=False).iloc[0]
-            valor_diaria = preco_row[coluna_preco]
-    valor_total = num_caes * qtd_diarias_cobradas * valor_diaria
-    return qtd_diarias_cobradas, valor_diaria, valor_total
+            valor_diaria_pacote = preco_row[coluna_preco]
+
+    # 3. Calcula o valor total com a nova regra
+    dias_inteiros = math.floor(qtd_diarias_cobradas)
+    fracao_diaria = qtd_diarias_cobradas - dias_inteiros
+    
+    custo_dias_inteiros = dias_inteiros * valor_diaria_pacote
+    custo_fracao = fracao_diaria * valor_diaria_base # Fração usa o preço de 1 diária
+    
+    valor_total = num_caes * (custo_dias_inteiros + custo_fracao)
+    
+    # Retorna o valor_diaria_pacote para exibição na tela
+    return qtd_diarias_cobradas, valor_diaria_pacote, valor_total
 
 def calcular_desconto_mensalista(entrada_dt, saida_dt, dias_plano_daycare, df_plano, num_caes):
     if not dias_plano_daycare or df_plano.empty: return 0, 0
@@ -179,51 +218,30 @@ def formatar_diarias_fracao(dias):
 
 
 # --- FUNÇÕES DE GERAÇÃO DE PDF ---
-
 def preparar_proposta_pdf():
     pdf = FPDF()
     pdf.add_page()
-    
-    # Adiciona a imagem de fundo que já está no seu projeto
     if os.path.exists("fundo_relatorio.png"):
         pdf.image("fundo_relatorio.png", x=0, y=0, w=210, h=297)
-    
-    # Tenta carregar as fontes personalizadas (essencial para caracteres especiais)
     try:
         pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
         font_family = 'DejaVu'
     except RuntimeError:
-        # Se a fonte não for encontrada, usa 'Arial' como alternativa
         font_family = 'Arial'
-    
     return pdf, font_family
 
 def gerar_proposta_pdf(dados):
     pdf, font_family = preparar_proposta_pdf()
-    
-    # --- CABEÇALHO ---
-    # Posição ajustada para a data
     pdf.set_y(52)
-    # Define a margem direita para alinhar o texto corretamente
     pdf.set_right_margin(20)
-
-    # Fonte maior e em negrito para a data
     pdf.set_font(font_family, 'B', 14) 
     pdf.set_text_color(255, 255, 255) 
-    # Célula da data alinhada à direita
     pdf.cell(w=0, h=10, txt=f"Data: {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='R')
-
-    #Set cor preta
     pdf.set_text_color(0, 0, 0) 
-
-    # Restaura a margem esquerda para o conteúdo principal
     pdf.set_left_margin(20)
-
-    # --- BLOCO DE INFORMAÇÕES PRINCIPAIS ---
     pdf.set_y(80) 
     
-    # Função auxiliar
     def add_info_line(label, value):
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(55, 8, label, 0, 0)
@@ -239,14 +257,11 @@ def gerar_proposta_pdf(dados):
     add_info_line("Valor Total:", f"R$ {dados['valor_final']:.2f}".replace('.', ',')) 
 
     pdf.ln(8)
-
-    # Retorna o buffer do PDF para o Streamlit
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
 
 # --- INTERFACE DO USUÁRIO (STREAMLIT) ---
-
 df_precos, df_mensal, df_fidelidade = fetch_all_data_from_gsheet()
 
 col1, col2, col3 = st.columns([1, 1, 1])
@@ -258,22 +273,18 @@ st.markdown("---")
 
 with st.container(border=True):
     st.subheader("🐾 Dados do Responsável e dos Pets")
-    
     nome_dono = st.text_input("Nome do Responsável")
     if 'num_caes' not in st.session_state:
         st.session_state.num_caes = 1
     st.session_state.num_caes = st.number_input(
         "Quantidade de Cães", min_value=1, value=st.session_state.num_caes, step=1, key="num_caes_selector"
     )
-
     st.markdown("---")
-    
     tipo_cliente = st.radio(
         "Tipo de Cliente",
         ["Cliente Avulso", "Cliente Mensal", "Cliente Mensal Fidelizado"],
         horizontal=True, key="tipo_cliente"
     )
-
     dias_plano_daycare = []
     if st.session_state.tipo_cliente != "Cliente Avulso":
         st.markdown("Marque os dias da semana do plano Daycare:")
@@ -282,7 +293,6 @@ with st.container(border=True):
         for i, (dia, valor) in enumerate(dias_map.items()):
             if dias_semana_cols[i].checkbox(dia, key=f"dia_{dia}"):
                 dias_plano_daycare.append(valor)
-    
     alta_temporada = st.checkbox("É Alta Temporada? (Feriados, Dezembro, Janeiro e Julho)") 
 
     with st.form("orcamento_form"):
@@ -292,7 +302,6 @@ with st.container(border=True):
         if st.session_state.num_caes > 0:
             for i in range(st.session_state.num_caes):
                 nomes_caes.append(st.text_input(f"Nome do Cão {i+1}", key=f"nome_cao_{i}", placeholder=f"Nome do Cão {i+1}"))
-        
         st.markdown("---")
         st.subheader("🗓️ Período da Estadia")
         col3, col4 = st.columns(2)
@@ -302,7 +311,6 @@ with st.container(border=True):
         with col4:
             data_saida = st.date_input("Data de Saída", format="DD/MM/YYYY")
             horario_saida = st.time_input("Horário de Saída", value=time(12, 0))
-        
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("Calcular Orçamento")
 
@@ -316,7 +324,6 @@ if submitted:
         with st.spinner("Calculando..."):
             entrada_datetime = datetime.combine(data_entrada, horario_entrada)
             saida_datetime = datetime.combine(data_saida, horario_saida)
-            
             resultado_base = calcular_orcamento_base(
                 df_precos, st.session_state.num_caes, entrada_datetime, saida_datetime, alta_temporada
             )
@@ -325,7 +332,6 @@ if submitted:
                 qtd_diarias, valor_diaria, valor_total_base = resultado_base
                 desconto = 0
                 dias_coincidentes = 0
-                
                 if st.session_state.tipo_cliente == "Cliente Mensal":
                     desconto, dias_coincidentes = calcular_desconto_mensalista(entrada_datetime, saida_datetime, dias_plano_daycare, df_mensal, st.session_state.num_caes)
                 elif st.session_state.tipo_cliente == "Cliente Mensal Fidelizado":
@@ -371,6 +377,22 @@ if submitted:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
 
+                # --- CHAMADA PARA SALVAR OS DADOS ---
+                dados_para_salvar = [
+                    datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    nome_dono,
+                    ", ".join(nomes_caes),
+                    entrada_datetime.strftime("%d/%m/%Y %H:%M"),
+                    saida_datetime.strftime("%d/%m/%Y %H:%M"),
+                    st.session_state.tipo_cliente,
+                    "Alta" if alta_temporada else "Normal",
+                    qtd_diarias,
+                    valor_diaria,
+                    desconto,
+                    valor_final
+                ]
+                salvar_orcamento_gsheet(dados_para_salvar)
+                
                 dados_para_pdf = {
                     "nome_dono": nome_dono,
                     "nomes_caes": ", ".join(nomes_caes),
@@ -394,7 +416,6 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
 
 
 
