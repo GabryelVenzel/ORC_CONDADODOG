@@ -7,6 +7,7 @@ from google.oauth2.service_account import Credentials
 from fpdf import FPDF
 from io import BytesIO
 import os
+import pytz # Biblioteca para lidar com fuso-horário
 
 # --- CONFIGURAÇÃO DA PÁGINA E ESTILO CSS ---
 st.set_page_config(
@@ -240,7 +241,8 @@ def gerar_proposta_pdf(dados):
     pdf.set_right_margin(20)
     pdf.set_font(font_family, 'B', 14) 
     pdf.set_text_color(255, 255, 255) 
-    pdf.cell(w=0, h=10, txt=f"Data: {datetime.now().strftime('%d/%m/%Y')}", border=0, ln=1, align='R')
+    # Usa a data do orçamento vinda do dicionário (já com fuso-horário)
+    pdf.cell(w=0, h=10, txt=f"Data: {dados.get('data_orcamento', '')}", border=0, ln=1, align='R')
     pdf.set_text_color(0, 0, 0) 
     pdf.set_left_margin(20)
     pdf.set_y(80) 
@@ -316,10 +318,10 @@ with st.container(border=True):
         st.subheader("🗓️ Período da Estadia")
         col3, col4 = st.columns(2)
         with col3:
-            data_entrada = st.date_input("Data de Entrada", value=datetime.strptime("13/09/2025", "%d/%m/%Y"), format="DD/MM/YYYY")
+            data_entrada = st.date_input("Data de Entrada", format="DD/MM/YYYY")
             horario_entrada = st.time_input("Horário de Entrada", value=time(14, 0))
         with col4:
-            data_saida = st.date_input("Data de Saída", value=datetime.strptime("18/09/2025", "%d/%m/%Y"), format="DD/MM/YYYY")
+            data_saida = st.date_input("Data de Saída", format="DD/MM/YYYY")
             horario_saida = st.time_input("Horário de Saída", value=time(12, 0))
         
         # --- CAMPO DE OBSERVAÇÃO ADICIONADO AQUI ---
@@ -379,7 +381,7 @@ if submitted:
                             <div class="metric-value">{valor_bruto_formatado}</div>
                         </div>
                         <div class="metric-box" title="{help_text}">
-                            <div class.metric-label">Desconto Daycare</div>
+                            <div class="metric-label">Desconto Daycare</div>
                             <div class="metric-value green">{desconto_formatado}</div>
                         </div>
                     </div>
@@ -391,8 +393,14 @@ if submitted:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
 
+                # --- LÓGICA DE DATA E HORA COM FUSO-HORÁRIO DE BRASÍLIA ---
+                brasilia_tz = pytz.timezone('America/Sao_Paulo')
+                now_brasilia = datetime.now(brasilia_tz)
+
+                # --- LISTA DE DADOS MODIFICADA PARA O NOVO FORMATO DA PLANILHA ---
                 dados_para_salvar = [
-                    datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    now_brasilia.strftime("%d/%m/%Y"),   # Apenas a data de Brasília
+                    now_brasilia.strftime("%H:%M:%S"), # Apenas o horário de Brasília
                     nome_dono,
                     ", ".join(nomes_caes),
                     entrada_datetime.strftime("%d/%m/%Y"), 
@@ -410,6 +418,7 @@ if submitted:
                 
                 # --- DICIONÁRIO PARA PDF ATUALIZADO ---
                 dados_para_pdf = {
+                    "data_orcamento": now_brasilia.strftime('%d/%m/%Y'), # Passa a data correta para o PDF
                     "nome_dono": nome_dono,
                     "nomes_caes": ", ".join(nomes_caes),
                     "data_entrada": data_entrada.strftime('%d/%m/%Y'),
@@ -422,7 +431,7 @@ if submitted:
                     "desconto": desconto,
                     "dias_coincidentes": dias_coincidentes,
                     "valor_final": valor_final,
-                    "observacao": observacao # Adiciona a observação aqui
+                    "observacao": observacao 
                 }
                 
                 pdf_bytes = gerar_proposta_pdf(dados_para_pdf)
