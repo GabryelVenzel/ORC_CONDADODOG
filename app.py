@@ -8,6 +8,7 @@ from fpdf import FPDF
 from io import BytesIO
 import os
 import pytz # Biblioteca para lidar com fuso-horário
+import calendar # Módulo para o novo cálculo dinâmico
 
 # --- CONFIGURAÇÃO DA PÁGINA E ESTILO CSS ---
 st.set_page_config(
@@ -16,7 +17,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# CSS
+# CSS com Media Query para responsividade
 st.markdown("""
 <style>
     :root {
@@ -42,7 +43,7 @@ st.markdown("""
         padding: 20px; display: flex; flex-direction: column; justify-content: center;
         align-items: center; height: 120px; box-shadow: 0px 4px 15px rgba(0,0,0,0.05);
     }
-    .metric-label { font-size: 16px; color: #555; margin-bottom: 8px; }
+    .metric-label { font-size: 16px; color: #555; margin-bottom: 8px; text-align: center; }
     .metric-value { font-size: 28px; font-weight: bold; color: var(--secondary-color); }
     .metric-value.green { color: var(--green-color); }
     .final-value-box {
@@ -52,6 +53,14 @@ st.markdown("""
     .final-value-box .metric-label { font-size: 18px; }
     .final-value-box .metric-value { font-size: 36px; color: var(--primary-color); }
     .stAlert { border-radius: 8px; }
+
+    /* --- MODIFICAÇÃO 1: REGRA PARA RESPONSIVIDADE EM CELULARES --- */
+    @media (max-width: 700px) {
+        .results-grid {
+            grid-template-columns: 1fr; /* Muda para uma coluna em telas pequenas */
+        }
+        .metric-label { font-size: 15px; } /* Ajuste opcional de fonte */
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -155,15 +164,42 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
     
     return qtd_diarias_cobradas, valor_diaria_pacote, valor_total
 
+def contar_dias_da_semana_no_mes(ano, mes, dia_da_semana):
+    """Conta quantas vezes um dia da semana (0=Seg, 6=Dom) aparece em um dado mês/ano."""
+    matriz_mes = calendar.monthcalendar(ano, mes)
+    contador = 0
+    for semana in matriz_mes:
+        if semana[dia_da_semana] != 0:
+            contador += 1
+    return contador
+
+# --- FUNÇÃO DE DESCONTO ATUALIZADA COM A LÓGICA CORRETA ---
 def calcular_desconto_mensalista(entrada_dt, saida_dt, dias_plano_daycare, df_plano, num_caes):
     if not dias_plano_daycare or df_plano.empty: return 0, 0
+    
     vezes_por_semana = len(dias_plano_daycare)
     plano_row = df_plano[df_plano['Vezes por semana'] == vezes_por_semana]
+    
     if plano_row.empty:
         st.warning(f"Não foi encontrado um plano para {vezes_por_semana}x por semana na planilha.")
         return 0, 0
+        
     valor_mensal = plano_row.iloc[0]['Valor']
-    valor_diario_proporcional = valor_mensal / (vezes_por_semana * 4)
+    
+    # --- CORREÇÃO APLICADA AQUI ---
+    # Usa o mês e ano da DATA DE ENTRADA para o cálculo, não o mês/ano atual.
+    ano_referencia = entrada_dt.year
+    mes_referencia = entrada_dt.month
+    
+    total_dias_plano_no_mes = 0
+    for dia in dias_plano_daycare: # Loop usa apenas os dias selecionados no checkbox
+        total_dias_plano_no_mes += contar_dias_da_semana_no_mes(ano_referencia, mes_referencia, dia)
+        
+    if total_dias_plano_no_mes > 0:
+        valor_diario_proporcional = valor_mensal / total_dias_plano_no_mes
+    else:
+        valor_diario_proporcional = 0
+
     dias_coincidentes = 0
     data_atual = entrada_dt.date()
     while data_atual <= saida_dt.date():
@@ -171,6 +207,7 @@ def calcular_desconto_mensalista(entrada_dt, saida_dt, dias_plano_daycare, df_pl
         if dia_da_semana in dias_plano_daycare:
             dias_coincidentes += 1
         data_atual += timedelta(days=1)
+        
     desconto_total = dias_coincidentes * valor_diario_proporcional * num_caes
     return desconto_total, dias_coincidentes
 
@@ -301,6 +338,7 @@ if submitted:
         with st.spinner("Calculando..."):
             entrada_datetime = datetime.combine(data_entrada, horario_entrada)
             saida_datetime = datetime.combine(data_saida, horario_saida)
+            
             resultado_base = calcular_orcamento_base(
                 df_precos, st.session_state.num_caes, entrada_datetime, saida_datetime, alta_temporada
             )
@@ -309,6 +347,7 @@ if submitted:
                 qtd_diarias, valor_diaria, valor_total_base = resultado_base
                 desconto = 0
                 dias_coincidentes = 0
+
                 if st.session_state.tipo_cliente == "Cliente Mensal":
                     desconto, dias_coincidentes = calcular_desconto_mensalista(entrada_datetime, saida_datetime, dias_plano_daycare, df_mensal, st.session_state.num_caes)
                 elif st.session_state.tipo_cliente == "Cliente Mensal Fidelizado":
@@ -325,7 +364,7 @@ if submitted:
                 valor_bruto_formatado = f"R$ {valor_total_base:,.2f}"
                 desconto_formatado = f"- R$ {desconto:,.2f}"
                 valor_final_formatado = f"R$ {valor_final:,.2f}"
-                help_text = f"Desconto para {dias_coincidentes} dia(s) do plano que coincidiram com a estadia."
+                help_text = f"Desconto para {dias_coincidentes} dia(s) do plano que coincidiram com a estadia." if dias_coincidentes > 0 else "Nenhum dia do plano coincidiu com a estadia."
 
                 st.markdown(f"""
                     <div class="results-grid">
@@ -354,12 +393,10 @@ if submitted:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # --- LÓGICA DE DATA E HORA COM FUSO-HORÁRIO DE BRASÍLIA (MÉTODO CORRIGIDO) ---
                 brasilia_tz = pytz.timezone('America/Sao_Paulo')
                 now_utc = datetime.now(pytz.utc)
                 now_brasilia = now_utc.astimezone(brasilia_tz)
 
-                # --- LISTA DE DADOS AJUSTADA PARA A ORDEM CORRETA DAS COLUNAS ---
                 dados_para_salvar = [
                     now_brasilia.strftime("%d/%m/%Y"),
                     now_brasilia.strftime("%H:%M:%S"),
