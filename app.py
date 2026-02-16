@@ -54,12 +54,11 @@ st.markdown("""
     .final-value-box .metric-value { font-size: 36px; color: var(--primary-color); }
     .stAlert { border-radius: 8px; }
 
-    /* --- MODIFICAÇÃO 1: REGRA PARA RESPONSIVIDADE EM CELULARES --- */
     @media (max-width: 700px) {
         .results-grid {
-            grid-template-columns: 1fr; /* Muda para uma coluna em telas pequenas */
+            grid-template-columns: 1fr;
         }
-        .metric-label { font-size: 15px; } /* Ajuste opcional de fonte */
+        .metric-label { font-size: 15px; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -111,18 +110,29 @@ def salvar_orcamento_gsheet(dados_orcamento):
         worksheet.append_row(dados_formatados, value_input_option='USER_ENTERED')
         st.info("✅ Orçamento registrado com sucesso no histórico!")
     except Exception as e:
-        st.error(f"Não foi possível salvar o orçamento na planilha. Verifique se a aba 'Registro de Orçamentos' existe e se o nome está exatamente correto.")
+        st.error(f"Não foi possível salvar o orçamento na planilha. Verifique se a aba 'Registro de Orçamentos' existe.")
         st.error(f"Detalhe do erro: {e}")
 
 
 # --- LÓGICAS DE CÁLCULO ---
+
 def calcular_diarias_com_tolerancia(total_horas):
-    if total_horas <= 0: return 0.25
-    if total_horas <= 6: return 0.25
+    """
+    Calcula a quantidade de diárias com base nas horas totais.
+    AJUSTE: Se a estadia for menor que 24h, retorna sempre 1.0 (uma diária cheia).
+    """
+    if total_horas <= 0: return 0.0
+    
+    # Se durar menos que 24 horas, cobra 1 diária cheia obrigatoriamente
+    if total_horas < 24:
+        return 1.0
+    
     dias_inteiros = math.floor(total_horas / 24)
     horas_residuais = total_horas % 24
+    
+    # Lógica de tolerância para o que exceder os dias inteiros
     if horas_residuais == 0: return float(dias_inteiros)
-    if horas_residuais <= 2: return float(dias_inteiros)
+    if horas_residuais <= 2: return float(dias_inteiros) # Tolerância de 2h
     if 2 < horas_residuais <= 6: return dias_inteiros + 0.25
     elif 6 < horas_residuais <= 12: return dias_inteiros + 0.50
     elif 12 < horas_residuais <= 18: return dias_inteiros + 0.75
@@ -133,19 +143,23 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
     if saida_dt <= entrada_dt:
         st.warning("A data e hora de saída devem ser posteriores à data e hora de entrada.")
         return None, None, None
+    
     duracao = saida_dt - entrada_dt
     total_horas = duracao.total_seconds() / 3600
+    
     qtd_diarias_cobradas = calcular_diarias_com_tolerancia(total_horas)
-    dias_para_lookup = int(qtd_diarias_cobradas)
+    
+    # Para busca de preço, consideramos o número inteiro de dias (mínimo 1)
+    dias_para_lookup = int(math.floor(qtd_diarias_cobradas))
     if dias_para_lookup == 0: dias_para_lookup = 1
+    
     coluna_preco = 'Alta temporada' if alta_temporada else 'Valor da Diária'
 
+    # Valor da diária base (1 dia) para cálculos de frações
     preco_row_base = df[df['Quantidade de Diárias'] == 1]
-    if not preco_row_base.empty:
-        valor_diaria_base = preco_row_base.iloc[0][coluna_preco]
-    else:
-        valor_diaria_base = df.sort_values('Quantidade de Diárias').iloc[0][coluna_preco]
+    valor_diaria_base = preco_row_base.iloc[0][coluna_preco] if not preco_row_base.empty else df.sort_values('Quantidade de Diárias').iloc[0][coluna_preco]
     
+    # Busca o valor da diária conforme o pacote (quantidade de dias)
     if dias_para_lookup > df['Quantidade de Diárias'].max():
         valor_diaria_pacote = df.sort_values('Quantidade de Diárias', ascending=False).iloc[0][coluna_preco]
     else:
@@ -158,14 +172,16 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
 
     dias_inteiros = math.floor(qtd_diarias_cobradas)
     fracao_diaria = qtd_diarias_cobradas - dias_inteiros
+    
+    # Cálculo Final
     custo_dias_inteiros = dias_inteiros * valor_diaria_pacote
     custo_fracao = fracao_diaria * valor_diaria_base
+    
     valor_total = num_caes * (custo_dias_inteiros + custo_fracao)
     
     return qtd_diarias_cobradas, valor_diaria_pacote, valor_total
 
 def contar_dias_da_semana_no_mes(ano, mes, dia_da_semana):
-    """Conta quantas vezes um dia da semana (0=Seg, 6=Dom) aparece em um dado mês/ano."""
     matriz_mes = calendar.monthcalendar(ano, mes)
     contador = 0
     for semana in matriz_mes:
@@ -173,7 +189,6 @@ def contar_dias_da_semana_no_mes(ano, mes, dia_da_semana):
             contador += 1
     return contador
 
-# --- FUNÇÃO DE DESCONTO ATUALIZADA COM A LÓGICA CORRETA ---
 def calcular_desconto_mensalista(entrada_dt, saida_dt, dias_plano_daycare, df_plano, num_caes):
     if not dias_plano_daycare or df_plano.empty: return 0, 0
     
@@ -186,13 +201,11 @@ def calcular_desconto_mensalista(entrada_dt, saida_dt, dias_plano_daycare, df_pl
         
     valor_mensal = plano_row.iloc[0]['Valor']
     
-    # --- CORREÇÃO APLICADA AQUI ---
-    # Usa o mês e ano da DATA DE ENTRADA para o cálculo, não o mês/ano atual.
     ano_referencia = entrada_dt.year
     mes_referencia = entrada_dt.month
     
     total_dias_plano_no_mes = 0
-    for dia in dias_plano_daycare: # Loop usa apenas os dias selecionados no checkbox
+    for dia in dias_plano_daycare:
         total_dias_plano_no_mes += contar_dias_da_semana_no_mes(ano_referencia, mes_referencia, dia)
         
     if total_dias_plano_no_mes > 0:
@@ -323,7 +336,7 @@ with st.container(border=True):
             data_saida = st.date_input("Data de Saída", format="DD/MM/YYYY")
             horario_saida = st.time_input("Horário de Saída", value=time(12, 0))
         
-        observacao = st.text_area("Observações", placeholder="Digite aqui alguma observação para a proposta (ex: medicação, cuidados especiais, etc.)")
+        observacao = st.text_area("Observações", placeholder="Digite aqui alguma observação...")
         
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("Calcular Orçamento")
@@ -357,14 +370,14 @@ if submitted:
                 
                 st.markdown("---")
                 st.subheader("💰 Orçamento Estimado")
-                st.success(f"Orçamento para **{nome_dono}** e seu(s) pet(s) **{', '.join(nomes_caes)}** gerado com sucesso!")
+                st.success(f"Orçamento para **{nome_dono}** gerado com sucesso!")
                 
                 diarias_formatadas = formatar_diarias_fracao(qtd_diarias)
                 valor_diaria_formatado = f"R$ {valor_diaria:,.2f}"
                 valor_bruto_formatado = f"R$ {valor_total_base:,.2f}"
                 desconto_formatado = f"- R$ {desconto:,.2f}"
                 valor_final_formatado = f"R$ {valor_final:,.2f}"
-                help_text = f"Desconto para {dias_coincidentes} dia(s) do plano que coincidiram com a estadia." if dias_coincidentes > 0 else "Nenhum dia do plano coincidiu com a estadia."
+                help_text = f"Desconto para {dias_coincidentes} dia(s) do plano." if dias_coincidentes > 0 else "Nenhum dia do plano coincidiu."
 
                 st.markdown(f"""
                     <div class="results-grid">
@@ -394,8 +407,7 @@ if submitted:
                 st.markdown("<br>", unsafe_allow_html=True)
 
                 brasilia_tz = pytz.timezone('America/Sao_Paulo')
-                now_utc = datetime.now(pytz.utc)
-                now_brasilia = now_utc.astimezone(brasilia_tz)
+                now_brasilia = datetime.now(pytz.utc).astimezone(brasilia_tz)
 
                 dados_para_salvar = [
                     now_brasilia.strftime("%d/%m/%Y"),
