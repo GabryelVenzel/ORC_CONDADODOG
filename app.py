@@ -236,12 +236,13 @@ def gerar_proposta_pdf(dados):
     pdf.set_left_margin(20)
     pdf.set_y(80) 
     
-    # AJUSTE 1: Uso de multi_cell para evitar quebra de texto
     def add_info_line(label, value):
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(55, 8, label, 0, 0)
         pdf.set_font(font_family, '', 12)
-        pdf.multi_cell(0, 8, str(value), 0, 'L')
+        # Cálculo manual da largura restante para evitar o erro de falta de espaço
+        largura_restante = pdf.w - pdf.l_margin - pdf.r_margin - 55
+        pdf.multi_cell(largura_restante, 8, str(value), 0, 'L')
 
     add_info_line("Tutor(a):", dados['nome_dono'])
     add_info_line("Dog(s):", dados['nomes_caes'])
