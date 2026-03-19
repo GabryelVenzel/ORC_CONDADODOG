@@ -117,22 +117,15 @@ def salvar_orcamento_gsheet(dados_orcamento):
 # --- LÓGICAS DE CÁLCULO ---
 
 def calcular_diarias_com_tolerancia(total_horas):
-    """
-    Calcula a quantidade de diárias com base nas horas totais.
-    AJUSTE: Se a estadia for menor que 24h, retorna sempre 1.0 (uma diária cheia).
-    """
     if total_horas <= 0: return 0.0
-    
-    # Se durar menos que 24 horas, cobra 1 diária cheia obrigatoriamente
     if total_horas < 24:
         return 1.0
     
     dias_inteiros = math.floor(total_horas / 24)
     horas_residuais = total_horas % 24
     
-    # Lógica de tolerância para o que exceder os dias inteiros
     if horas_residuais == 0: return float(dias_inteiros)
-    if horas_residuais <= 2: return float(dias_inteiros) # Tolerância de 2h
+    if horas_residuais <= 2: return float(dias_inteiros) 
     if 2 < horas_residuais <= 6: return dias_inteiros + 0.25
     elif 6 < horas_residuais <= 12: return dias_inteiros + 0.50
     elif 12 < horas_residuais <= 18: return dias_inteiros + 0.75
@@ -148,18 +141,13 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
     total_horas = duracao.total_seconds() / 3600
     
     qtd_diarias_cobradas = calcular_diarias_com_tolerancia(total_horas)
-    
-    # Para busca de preço, consideramos o número inteiro de dias (mínimo 1)
     dias_para_lookup = int(math.floor(qtd_diarias_cobradas))
     if dias_para_lookup == 0: dias_para_lookup = 1
     
     coluna_preco = 'Alta temporada' if alta_temporada else 'Valor da Diária'
-
-    # Valor da diária base (1 dia) para cálculos de frações
     preco_row_base = df[df['Quantidade de Diárias'] == 1]
     valor_diaria_base = preco_row_base.iloc[0][coluna_preco] if not preco_row_base.empty else df.sort_values('Quantidade de Diárias').iloc[0][coluna_preco]
     
-    # Busca o valor da diária conforme o pacote (quantidade de dias)
     if dias_para_lookup > df['Quantidade de Diárias'].max():
         valor_diaria_pacote = df.sort_values('Quantidade de Diárias', ascending=False).iloc[0][coluna_preco]
     else:
@@ -173,55 +161,44 @@ def calcular_orcamento_base(df, num_caes, entrada_dt, saida_dt, alta_temporada):
     dias_inteiros = math.floor(qtd_diarias_cobradas)
     fracao_diaria = qtd_diarias_cobradas - dias_inteiros
     
-    # Cálculo Final
     custo_dias_inteiros = dias_inteiros * valor_diaria_pacote
     custo_fracao = fracao_diaria * valor_diaria_base
-    
     valor_total = num_caes * (custo_dias_inteiros + custo_fracao)
     
     return qtd_diarias_cobradas, valor_diaria_pacote, valor_total
 
-def contar_dias_da_semana_no_mes(ano, mes, dia_da_semana):
-    matriz_mes = calendar.monthcalendar(ano, mes)
-    contador = 0
-    for semana in matriz_mes:
-        if semana[dia_da_semana] != 0:
-            contador += 1
-    return contador
-
 def calcular_desconto_mensalista(entrada_dt, saida_dt, dias_plano_daycare, df_plano, num_caes):
+    """
+    AJUSTE 2: Lógica baseada em mês de 28 dias (4 semanas fixas).
+    O desconto é limitado ao valor total da mensalidade.
+    """
     if not dias_plano_daycare or df_plano.empty: return 0, 0
     
     vezes_por_semana = len(dias_plano_daycare)
     plano_row = df_plano[df_plano['Vezes por semana'] == vezes_por_semana]
     
     if plano_row.empty:
-        st.warning(f"Não foi encontrado um plano para {vezes_por_semana}x por semana na planilha.")
+        st.warning(f"Não foi encontrado um plano para {vezes_por_semana}x por semana.")
         return 0, 0
         
-    valor_mensal = plano_row.iloc[0]['Valor']
+    valor_mensal_por_cao = plano_row.iloc[0]['Valor']
     
-    ano_referencia = entrada_dt.year
-    mes_referencia = entrada_dt.month
-    
-    total_dias_plano_no_mes = 0
-    for dia in dias_plano_daycare:
-        total_dias_plano_no_mes += contar_dias_da_semana_no_mes(ano_referencia, mes_referencia, dia)
-        
-    if total_dias_plano_no_mes > 0:
-        valor_diario_proporcional = valor_mensal / total_dias_plano_no_mes
-    else:
-        valor_diario_proporcional = 0
+    # Cálculo proporcional baseado em 4 semanas fixas (28 dias)
+    total_dias_base_mes = vezes_por_semana * 4
+    valor_diario_proporcional = valor_mensal_por_cao / total_dias_base_mes
 
+    # Contagem de dias coincidentes na estadia
     dias_coincidentes = 0
     data_atual = entrada_dt.date()
     while data_atual <= saida_dt.date():
-        dia_da_semana = data_atual.weekday()
-        if dia_da_semana in dias_plano_daycare:
+        if data_atual.weekday() in dias_plano_daycare:
             dias_coincidentes += 1
         data_atual += timedelta(days=1)
         
-    desconto_total = dias_coincidentes * valor_diario_proporcional * num_caes
+    # Desconto unitário limitado ao valor da mensalidade do plano
+    desconto_por_cao = min(dias_coincidentes * valor_diario_proporcional, valor_mensal_por_cao)
+    desconto_total = desconto_por_cao * num_caes
+    
     return desconto_total, dias_coincidentes
 
 def formatar_diarias_fracao(dias):
@@ -259,11 +236,12 @@ def gerar_proposta_pdf(dados):
     pdf.set_left_margin(20)
     pdf.set_y(80) 
     
+    # AJUSTE 1: Uso de multi_cell para evitar quebra de texto
     def add_info_line(label, value):
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(55, 8, label, 0, 0)
         pdf.set_font(font_family, '', 12)
-        pdf.cell(0, 8, value, 0, 1)
+        pdf.multi_cell(0, 8, str(value), 0, 'L')
 
     add_info_line("Tutor(a):", dados['nome_dono'])
     add_info_line("Dog(s):", dados['nomes_caes'])
@@ -274,7 +252,7 @@ def gerar_proposta_pdf(dados):
     add_info_line("Valor Total:", f"R$ {dados['valor_final']:.2f}".replace('.', ',')) 
 
     if dados.get("observacao"):
-        pdf.ln(8) 
+        pdf.ln(4) 
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(0, 8, "Observações:", 0, 1)
         pdf.set_font(font_family, '', 12)
@@ -298,34 +276,37 @@ st.markdown("---")
 with st.container(border=True):
     st.subheader("🐾 Dados do Responsável e dos Pets")
     nome_dono = st.text_input("Nome do Responsável")
-    if 'num_caes' not in st.session_state:
-        st.session_state.num_caes = 1
-    st.session_state.num_caes = st.number_input(
-        "Quantidade de Cães", min_value=1, value=st.session_state.num_caes, step=1, key="num_caes_selector"
+    
+    # Num_caes fora do form para reatividade imediata
+    num_caes = st.number_input(
+        "Quantidade de Cães", min_value=1, value=1, step=1
     )
+    
     st.markdown("---")
     tipo_cliente = st.radio(
         "Tipo de Cliente",
         ["Cliente Avulso", "Cliente Mensal", "Cliente Mensal Fidelizado"],
-        horizontal=True, key="tipo_cliente"
+        horizontal=True, key="tipo_cliente_radio"
     )
+    
     dias_plano_daycare = []
-    if st.session_state.tipo_cliente != "Cliente Avulso":
+    if st.session_state.tipo_cliente_radio != "Cliente Avulso":
         st.markdown("Marque os dias da semana do plano Daycare:")
         dias_semana_cols = st.columns(5)
         dias_map = {"Segunda": 0, "Terça": 1, "Quarta": 2, "Quinta": 3, "Sexta": 4}
         for i, (dia, valor) in enumerate(dias_map.items()):
             if dias_semana_cols[i].checkbox(dia, key=f"dia_{dia}"):
                 dias_plano_daycare.append(valor)
+    
     alta_temporada = st.checkbox("É Alta Temporada? (Feriados, Dezembro, Janeiro e Julho)") 
 
     with st.form("orcamento_form"):
         st.markdown("---")
         st.subheader("🐶 Nomes dos Pets")
         nomes_caes = []
-        if st.session_state.num_caes > 0:
-            for i in range(st.session_state.num_caes):
-                nomes_caes.append(st.text_input(f"Nome do Cão {i+1}", key=f"nome_cao_{i}", placeholder=f"Nome do Cão {i+1}"))
+        for i in range(int(num_caes)):
+            nomes_caes.append(st.text_input(f"Nome do Cão {i+1}", key=f"nome_cao_{i}", placeholder=f"Nome do Cão {i+1}"))
+            
         st.markdown("---")
         st.subheader("🗓️ Período da Estadia")
         col3, col4 = st.columns(2)
@@ -337,7 +318,6 @@ with st.container(border=True):
             horario_saida = st.time_input("Horário de Saída", value=time(12, 0))
         
         observacao = st.text_area("Observações", placeholder="Digite aqui alguma observação...")
-        
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("Calcular Orçamento")
 
@@ -353,7 +333,7 @@ if submitted:
             saida_datetime = datetime.combine(data_saida, horario_saida)
             
             resultado_base = calcular_orcamento_base(
-                df_precos, st.session_state.num_caes, entrada_datetime, saida_datetime, alta_temporada
+                df_precos, num_caes, entrada_datetime, saida_datetime, alta_temporada
             )
             
             if resultado_base:
@@ -361,12 +341,12 @@ if submitted:
                 desconto = 0
                 dias_coincidentes = 0
 
-                if st.session_state.tipo_cliente == "Cliente Mensal":
-                    desconto, dias_coincidentes = calcular_desconto_mensalista(entrada_datetime, saida_datetime, dias_plano_daycare, df_mensal, st.session_state.num_caes)
-                elif st.session_state.tipo_cliente == "Cliente Mensal Fidelizado":
-                    desconto, dias_coincidentes = calcular_desconto_mensalista(entrada_datetime, saida_datetime, dias_plano_daycare, df_fidelidade, st.session_state.num_caes)
+                if st.session_state.tipo_cliente_radio == "Cliente Mensal":
+                    desconto, dias_coincidentes = calcular_desconto_mensalista(entrada_datetime, saida_datetime, dias_plano_daycare, df_mensal, num_caes)
+                elif st.session_state.tipo_cliente_radio == "Cliente Mensal Fidelizado":
+                    desconto, dias_coincidentes = calcular_desconto_mensalista(entrada_datetime, saida_datetime, dias_plano_daycare, df_fidelidade, num_caes)
 
-                valor_final = valor_total_base - desconto
+                valor_final = max(0, valor_total_base - desconto)
                 
                 st.markdown("---")
                 st.subheader("💰 Orçamento Estimado")
@@ -377,7 +357,7 @@ if submitted:
                 valor_bruto_formatado = f"R$ {valor_total_base:,.2f}"
                 desconto_formatado = f"- R$ {desconto:,.2f}"
                 valor_final_formatado = f"R$ {valor_final:,.2f}"
-                help_text = f"Desconto para {dias_coincidentes} dia(s) do plano." if dias_coincidentes > 0 else "Nenhum dia do plano coincidiu."
+                help_text = f"Desconto para {dias_coincidentes} dia(s) do plano (base: 4 semanas/mês)."
 
                 st.markdown(f"""
                     <div class="results-grid">
@@ -418,7 +398,7 @@ if submitted:
                     entrada_datetime.strftime("%H:%M"),   
                     saida_datetime.strftime("%d/%m/%Y"),   
                     saida_datetime.strftime("%H:%M"),     
-                    st.session_state.tipo_cliente,
+                    st.session_state.tipo_cliente_radio,
                     "Alta" if alta_temporada else "Normal",
                     f"{qtd_diarias:.2f}".replace('.', ','), 
                     f"{valor_diaria:.2f}".replace('.', ','), 
@@ -452,4 +432,3 @@ if submitted:
                     file_name=f"Proposta_{nome_dono.replace(' ', '_')}_{now_brasilia.strftime('%Y%m%d')}.pdf",
                     mime="application/pdf"
                 )
-
