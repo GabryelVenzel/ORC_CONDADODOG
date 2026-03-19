@@ -232,18 +232,30 @@ def gerar_proposta_pdf(dados):
     pdf.set_font(font_family, 'B', 14) 
     pdf.set_text_color(255, 255, 255) 
     pdf.cell(w=0, h=10, txt=f"Data: {dados.get('data_orcamento', '')}", border=0, ln=1, align='R')
+    
     pdf.set_text_color(0, 0, 0) 
     pdf.set_left_margin(20)
     pdf.set_y(80) 
     
+    # --- FUNÇÃO INTERNA CORRIGIDA ---
     def add_info_line(label, value):
+        # 1. Salva a posição X inicial (margem esquerda)
+        x_inicial = pdf.get_x()
+        
+        # 2. Imprime o rótulo
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(55, 8, label, 0, 0)
+        
+        # 3. Imprime o valor com multi_cell
         pdf.set_font(font_family, '', 12)
-        # Cálculo manual da largura restante para evitar o erro de falta de espaço
         largura_restante = pdf.w - pdf.l_margin - pdf.r_margin - 55
         pdf.multi_cell(largura_restante, 8, str(value), 0, 'L')
+        
+        # 4. ESSENCIAL: Volta o cursor para a margem esquerda para a próxima linha
+        pdf.set_x(x_inicial)
+        # pdf.ln(1) # Opcional: adiciona um pequeno espaçamento extra entre blocos
 
+    # --- IMPRESSÃO DOS DADOS ---
     add_info_line("Tutor(a):", dados['nome_dono'])
     add_info_line("Dog(s):", dados['nomes_caes'])
     add_info_line("Check-in:", f"{dados['data_entrada']} às {dados['horario_entrada'].replace(':', 'H')}")
